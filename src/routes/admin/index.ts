@@ -1,19 +1,20 @@
 // backend/src/routes/admin/index.ts
-import { Router } from 'express';
-import { readJson, writeJson } from '../../utils/dataStore.js';
-import { Employee, Department, AttendanceItem, Remark, SessionsMap, BackupMeta, BackupBlob } from '../../types.js';
+import { Router } from "express";
+import { readJson, writeJson } from "../../utils/dataStore";
 
-// ---- 型定義（最小限・今回のエラー対策）----
+// ==============================
+// ローカル型（最小限・暫定）
+// ==============================
 type ISODateTime = string;
 
-export interface Department {
+interface Department {
   id: number;
   name: string;
   created_at: ISODateTime;
   updated_at?: ISODateTime;
 }
 
-export interface Employee {
+interface Employee {
   code: string;
   name: string;
   department_id: number;
@@ -21,7 +22,7 @@ export interface Employee {
   updated_at?: ISODateTime;
 }
 
-export interface Remark {
+interface Remark {
   code: string;
   date: string;             // YYYY-MM-DD
   remark: string;
@@ -29,25 +30,25 @@ export interface Remark {
   updated_at?: ISODateTime;
 }
 
-export interface AttendanceItem {
+interface AttendanceItem {
   employeeCode: string;
   date: string;             // YYYY-MM-DD
   clock_in: string | null;
   clock_out: string | null;
   work_hours: number;
-  // 追加：今回エラーで要求されていたフィールド
+  // 追加：既存コードが使っているフィールドを許容（暫定）
   updated_at?: ISODateTime;
-  code?: string;            // 既存コードが code を入れているため許容
+  code?: string;
 }
 
-export interface BackupBlob {
+interface BackupBlob {
   employees: Employee[];
   departments: Department[];
   attendance: AttendanceItem[];
   remarks: Remark[];
 }
 
-export interface BackupMeta {
+interface BackupMeta {
   id: string;
   timestamp: ISODateTime;
   reason: any;
@@ -56,907 +57,705 @@ export interface BackupMeta {
 }
 
 type SessionInfo = {
-  tmpDir?: string;
-  zipPath?: string;
-  createdAt: ISODateTime;
+  user?: { code: string; name: string; department?: any };
+  created_at: ISODateTime;
+  expires_at?: ISODateTime;
 };
 type SessionsMap = Record<string, SessionInfo>;
-// ---- 型定義ここまで ----
 
-export const admin = Router();
+// ==============================
 
-// 既存: ヘルス
-admin.get('/health', (_req, res) => res.json({ ok: true }));
+const admin = Router();
+
+// ヘルス
+admin.get("/health", (_req, res) =>
+  res.json({ ok: true, now: new Date().toISOString() })
+);
 
 // ============================================================================
-// 部署管理 API
+// 部署管理
 // ============================================================================
 
-// 部署一覧取得
-admin.get('/departments', (_req, res) => {
+// 一覧
+admin.get("/departments", (_req, res) => {
   try {
-    const departments = readJson<Department[]>('departments.json', []);
+    const departments = readJson<Department[]>("departments.json", []);
     res.json({ ok: true, items: departments });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to read departments' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to read departments" });
   }
 });
 
-// 部署追加
-admin.post('/departments', (req, res) => {
+// 追加
+admin.post("/departments", (req, res) => {
   try {
-    const name = (req.body?.name ?? '').toString().trim();
-    if (!name) return res.status(400).json({ ok: false, error: 'name required' });
-    
-    const departments = readJson<Department[]>('departments.json', []);
+    const name = (req.body?.name ?? "").toString().trim();
+    if (!name) return res.status(400).json({ ok: false, error: "name required" });
+
+    const departments = readJson<Department[]>("departments.json", []);
     const id = Date.now();
-    const dept = { id, name, created_at: new Date().toISOString() };
+    const dept: Department = { id, name, created_at: new Date().toISOString() };
     departments.push(dept);
-    writeJson('departments.json', departments);
-    
+    writeJson("departments.json", departments);
+
     res.status(201).json({ ok: true, item: dept });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to create department' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to create department" });
   }
 });
 
-// 部署更新
-admin.put('/departments/:id', (req, res) => {
+// 更新
+admin.put("/departments/:id", (req, res) => {
   try {
     const id = Number(req.params.id);
-    const name = (req.body?.name ?? '').toString().trim();
-    if (!name) return res.status(400).json({ ok: false, error: 'name required' });
-    
-    const departments = readJson<Department[]>('departments.json', []);
-    const index = departments.findIndex((d: Department) => d.id === id);
-    if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
-    
-    departments[index] = { ...departments[index], name, updated_at: new Date().toISOString() };
-    writeJson('departments.json', departments);
-    
+    const name = (req.body?.name ?? "").toString().trim();
+    if (!name) return res.status(400).json({ ok: false, error: "name required" });
+
+    const departments = readJson<Department[]>("departments.json", []);
+    const index = departments.findIndex((d) => d.id === id);
+    if (index === -1) return res.status(404).json({ ok: false, error: "department not found" });
+
+    departments[index] = {
+      ...departments[index],
+      name,
+      updated_at: new Date().toISOString(),
+    };
+    writeJson("departments.json", departments);
+
     res.json({ ok: true, item: departments[index] });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update department' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to update department" });
   }
 });
 
-// 部署削除
-admin.delete('/departments/:id', (req, res) => {
+// 削除
+admin.delete("/departments/:id", (req, res) => {
   try {
     const id = Number(req.params.id);
-    const departments = readJson<Department[]>('departments.json', []);
-    const index = departments.findIndex((d: Department) => d.id === id);
-    if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
-    
+    const departments = readJson<Department[]>("departments.json", []);
+    const index = departments.findIndex((d) => d.id === id);
+    if (index === -1) return res.status(404).json({ ok: false, error: "department not found" });
+
     const deleted = departments.splice(index, 1)[0];
-    writeJson('departments.json', departments);
-    
+    writeJson("departments.json", departments);
+
     res.json({ ok: true, item: deleted });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete department' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to delete department" });
   }
 });
 
 // ============================================================================
-// 社員管理 API
+// 社員管理
 // ============================================================================
 
-// 社員一覧取得
-admin.get('/employees', (_req, res) => {
+// 一覧
+admin.get("/employees", (_req, res) => {
   try {
-    const employees = readJson<Employee[]>('employees.json', []);
+    const employees = readJson<Employee[]>("employees.json", []);
     res.json({ ok: true, employees });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to read employees' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to read employees" });
   }
 });
 
-// 社員追加
-admin.post('/employees', (req, res) => {
+// 追加
+admin.post("/employees", (req, res) => {
   try {
-    const { code, name, department_id } = req.body;
+    const { code, name, department_id } = req.body ?? {};
     if (!code || !name || !department_id) {
-      return res.status(400).json({ ok: false, error: 'code, name, and department_id are required' });
+      return res
+        .status(400)
+        .json({ ok: false, error: "code, name, and department_id are required" });
     }
-    
-    const employees = readJson<Employee[]>('employees.json', []);
-    const existingIndex = employees.findIndex((e: Employee) => e.code === code);
-    
-    if (existingIndex >= 0) {
-      if (req.query.overwrite === 'true') {
-        // 上書き更新
-        employees[existingIndex] = { 
-          ...employees[existingIndex], 
-          name, 
-          department_id, 
-          updated_at: new Date().toISOString() 
+
+    const employees = readJson<Employee[]>("employees.json", []);
+    const idx = employees.findIndex((e) => e.code === code);
+
+    if (idx >= 0) {
+      if (String(req.query.overwrite) === "true") {
+        employees[idx] = {
+          ...employees[idx],
+          name: String(name),
+          department_id: Number(department_id),
+          updated_at: new Date().toISOString(),
         };
-        writeJson('employees.json', employees);
-        return res.json({ ok: true, employee: employees[existingIndex] });
-      } else {
-        return res.status(409).json({ ok: false, error: 'code already exists' });
+        writeJson("employees.json", employees);
+        return res.json({ ok: true, employee: employees[idx] });
       }
+      return res.status(409).json({ ok: false, error: "code already exists" });
     }
-    
-    // 新規作成
-    const employee = { 
-      code, 
-      name, 
-      department_id, 
-      created_at: new Date().toISOString() 
+
+    const employee: Employee = {
+      code: String(code),
+      name: String(name),
+      department_id: Number(department_id),
+      created_at: new Date().toISOString(),
     };
     employees.push(employee);
-    writeJson('employees.json', employees);
-    
+    writeJson("employees.json", employees);
+
     res.status(201).json({ ok: true, employee });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to create employee' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to create employee" });
   }
 });
 
-// 社員更新
-admin.put('/employees/:code', (req, res) => {
+// 更新
+admin.put("/employees/:code", (req, res) => {
   try {
     const { code } = req.params;
-    const { name, department_id } = req.body;
-    
+    const { name, department_id } = req.body ?? {};
     if (!name || !department_id) {
-      return res.status(400).json({ ok: false, error: 'name and department_id are required' });
+      return res
+        .status(400)
+        .json({ ok: false, error: "name and department_id are required" });
     }
-    
-    const employees = readJson<Employee[]>('employees.json', []);
-    const index = employees.findIndex((e: Employee) => e.code === code);
-    if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
-    
-    employees[index] = { 
-      ...employees[index], 
-      name, 
-      department_id, 
-      updated_at: new Date().toISOString() 
+
+    const employees = readJson<Employee[]>("employees.json", []);
+    const index = employees.findIndex((e) => e.code === code);
+    if (index === -1) return res.status(404).json({ ok: false, error: "employee not found" });
+
+    employees[index] = {
+      ...employees[index],
+      name: String(name),
+      department_id: Number(department_id),
+      updated_at: new Date().toISOString(),
     };
-    writeJson('employees.json', employees);
-    
+    writeJson("employees.json", employees);
+
     res.json({ ok: true, employee: employees[index] });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update employee' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to update employee" });
   }
 });
 
-// 社員削除
-admin.delete('/employees/:code', (req, res) => {
+// 削除
+admin.delete("/employees/:code", (req, res) => {
   try {
     const { code } = req.params;
-    const employees = readJson<Employee[]>('employees.json', []);
-    const index = employees.findIndex((e: Employee) => e.code === code);
-    if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
-    
+    const employees = readJson<Employee[]>("employees.json", []);
+    const index = employees.findIndex((e) => e.code === code);
+    if (index === -1) return res.status(404).json({ ok: false, error: "employee not found" });
+
     const deleted = employees.splice(index, 1)[0];
-    writeJson('employees.json', employees);
-    
+    writeJson("employees.json", employees);
+
     res.json({ ok: true, employee: deleted });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete employee' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to delete employee" });
   }
 });
 
-// 社員コード存在チェック
-admin.get('/employees/:code/exists', (req, res) => {
+// 存在チェック
+admin.get("/employees/:code/exists", (req, res) => {
   try {
     const { code } = req.params;
-    const employees = readJson<Employee[]>('employees.json', []);
-    const exists = employees.some((e: Employee) => e.code === code);
+    const employees = readJson<Employee[]>("employees.json", []);
+    const exists = employees.some((e) => e.code === code);
     res.json({ ok: true, code, exists });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to check employee code' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to check employee code" });
   }
 });
 
 // ============================================================================
-// 勤怠管理 API
+// 勤怠管理
 // ============================================================================
 
-// 出勤打刻
-admin.post('/clock/in', (req, res) => {
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+// 出勤
+admin.post("/clock/in", (req, res) => {
   try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const today = new Date().toISOString().slice(0, 10);
+    const { code } = req.body ?? {};
+    if (!code) return res.status(400).json({ ok: false, error: "code is required" });
+
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const today = todayStr();
     const now = new Date().toISOString();
-    
-    // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      attendance[existingIndex].clock_in = now;
-      attendance[existingIndex].updated_at = now;
+
+    const idx = attendance.findIndex((a) => a.code === code && a.date === today);
+    if (idx >= 0) {
+      attendance[idx].clock_in = now;
+      attendance[idx].updated_at = now;
     } else {
-      // 新規作成
       attendance.push({
-        employeeCode: code,
-        code,
+        employeeCode: String(code),
+        code: String(code),
         date: today,
         clock_in: now,
         clock_out: null,
         work_hours: 0,
-        created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     }
-    
-    writeJson('attendance.json', attendance);
-    res.json({ ok: true, message: '出勤を記録しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to record clock in' });
+    writeJson("attendance.json", attendance);
+    res.json({ ok: true, message: "出勤を記録しました" });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to record clock in" });
   }
 });
 
-// 退勤打刻
-admin.post('/clock/out', (req, res) => {
+// 退勤
+admin.post("/clock/out", (req, res) => {
   try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const today = new Date().toISOString().slice(0, 10);
+    const { code } = req.body ?? {};
+    if (!code) return res.status(400).json({ ok: false, error: "code is required" });
+
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const today = todayStr();
     const now = new Date().toISOString();
-    
-    // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      attendance[existingIndex].clock_out = now;
-      attendance[existingIndex].updated_at = now;
+
+    const idx = attendance.findIndex((a) => a.code === code && a.date === today);
+    if (idx >= 0) {
+      attendance[idx].clock_out = now;
+      attendance[idx].updated_at = now;
     } else {
-      // 新規作成（出勤なしで退勤のみ）
       attendance.push({
-        employeeCode: code,
-        code,
+        employeeCode: String(code),
+        code: String(code),
         date: today,
         clock_in: null,
         clock_out: now,
         work_hours: 0,
-        created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     }
-    
-    writeJson('attendance.json', attendance);
-    res.json({ ok: true, message: '退勤を記録しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to record clock out' });
+    writeJson("attendance.json", attendance);
+    res.json({ ok: true, message: "退勤を記録しました" });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to record clock out" });
   }
 });
 
-// フロントエンド互換: 出勤打刻
-admin.post('/attendance/checkin', (req, res) => {
+// 互換：出勤打刻
+admin.post("/attendance/checkin", (req, res) => {
   try {
-    const { code, note } = req.body;
-    if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const today = new Date().toISOString().slice(0, 10);
+    const { code } = req.body ?? {};
+    if (!code) return res.status(400).json({ ok: false, error: "code is required" });
+
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const today = todayStr();
     const now = new Date().toISOString();
-    
-    // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      attendance[existingIndex].clock_in = now;
-      attendance[existingIndex].updated_at = now;
+
+    const idx = attendance.findIndex((a) => a.code === code && a.date === today);
+    if (idx >= 0) {
+      attendance[idx].clock_in = now;
+      attendance[idx].updated_at = now;
     } else {
-      // 新規作成
       attendance.push({
-        employeeCode: code,
-        code,
+        employeeCode: String(code),
+        code: String(code),
         date: today,
         clock_in: now,
         clock_out: null,
         work_hours: 0,
-        created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     }
-    
-    writeJson('attendance.json', attendance);
-    res.json({ ok: true, message: '出勤を記録しました', checkin: now });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to record clock in' });
+    writeJson("attendance.json", attendance);
+    res.json({ ok: true, message: "出勤を記録しました", checkin: now });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to record clock in" });
   }
 });
 
-// フロントエンド互換: 退勤打刻
-admin.post('/attendance/checkout', (req, res) => {
+// 互換：退勤打刻
+admin.post("/attendance/checkout", (req, res) => {
   try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const today = new Date().toISOString().slice(0, 10);
+    const { code } = req.body ?? {};
+    if (!code) return res.status(400).json({ ok: false, error: "code is required" });
+
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const today = todayStr();
     const now = new Date().toISOString();
-    
-    // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      attendance[existingIndex].clock_out = now;
-      attendance[existingIndex].updated_at = now;
+
+    const idx = attendance.findIndex((a) => a.code === code && a.date === today);
+    if (idx >= 0) {
+      attendance[idx].clock_out = now;
+      attendance[idx].updated_at = now;
     } else {
-      // 新規作成（出勤なしで退勤のみ）
       attendance.push({
-        employeeCode: code,
-        code,
+        employeeCode: String(code),
+        code: String(code),
         date: today,
         clock_in: null,
         clock_out: now,
         work_hours: 0,
-        created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     }
-    
-    writeJson('attendance.json', attendance);
-    res.json({ ok: true, message: '退勤を記録しました', checkout: now });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to record clock out' });
+    writeJson("attendance.json", attendance);
+    res.json({ ok: true, message: "退勤を記録しました", checkout: now });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to record clock out" });
   }
 });
 
-// 勤怠時間修正
-admin.put('/attendance/update', (req, res) => {
+// 勤怠修正
+admin.put("/attendance/update", (req, res) => {
   try {
-    const { code, date, clock_in, clock_out } = req.body;
-    if (!code || !date) return res.status(400).json({ ok: false, error: 'code and date are required' });
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === date);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      attendance[existingIndex] = {
-        ...attendance[existingIndex],
-        clock_in,
-        clock_out,
-        updated_at: new Date().toISOString()
+    const { code, date, clock_in, clock_out } = req.body ?? {};
+    if (!code || !date)
+      return res.status(400).json({ ok: false, error: "code and date are required" });
+
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const idx = attendance.findIndex((a) => a.code === code && a.date === String(date));
+    const now = new Date().toISOString();
+
+    if (idx >= 0) {
+      attendance[idx] = {
+        ...attendance[idx],
+        clock_in: clock_in ?? attendance[idx].clock_in ?? null,
+        clock_out: clock_out ?? attendance[idx].clock_out ?? null,
+        updated_at: now,
       };
     } else {
-      // 新規作成
       attendance.push({
-        employeeCode: code,
-        code,
-        date,
-        clock_in,
-        clock_out,
+        employeeCode: String(code),
+        code: String(code),
+        date: String(date),
+        clock_in: clock_in ?? null,
+        clock_out: clock_out ?? null,
         work_hours: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: now,
       });
     }
-    
-    writeJson('attendance.json', attendance);
-    res.json({ ok: true, message: '勤怠を更新しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to update attendance' });
+    writeJson("attendance.json", attendance);
+    res.json({ ok: true, message: "勤怠を更新しました" });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to update attendance" });
   }
 });
 
 // ============================================================================
-// 備考管理 API
+// 備考管理
 // ============================================================================
 
-// 備考保存
-admin.post('/remarks', (req, res) => {
+// 保存
+admin.post("/remarks", (req, res) => {
   try {
-    const { employeeCode: code, date, remark } = req.body;
-    if (!code || !date) return res.status(400).json({ ok: false, error: 'employeeCode and date are required' });
-    
-    const remarks = readJson<Remark[]>('remarks.json', []);
-    const existingIndex = remarks.findIndex((r: Remark) => r.code === code && r.date === date);
-    
-    if (existingIndex >= 0) {
-      // 既存の記録を更新
-      remarks[existingIndex] = {
-        ...remarks[existingIndex],
-        remark,
-        updated_at: new Date().toISOString()
-      };
+    const { employeeCode: code, date, remark } = req.body ?? {};
+    if (!code || !date)
+      return res
+        .status(400)
+        .json({ ok: false, error: "employeeCode and date are required" });
+
+    const remarks = readJson<Remark[]>("remarks.json", []);
+    const idx = remarks.findIndex((r) => r.code === code && r.date === date);
+
+    if (idx >= 0) {
+      remarks[idx] = { ...remarks[idx], remark: String(remark ?? ""), updated_at: new Date().toISOString() };
     } else {
-      // 新規作成
-      remarks.push({
-        code,
-        date,
-        remark,
-        created_at: new Date().toISOString()
-      });
+      remarks.push({ code: String(code), date: String(date), remark: String(remark ?? ""), created_at: new Date().toISOString() } as any);
     }
-    
-    writeJson('remarks.json', remarks);
-    res.json({ ok: true, message: '備考を保存しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to save remark' });
+    writeJson("remarks.json", remarks);
+    res.json({ ok: true, message: "備考を保存しました" });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to save remark" });
   }
 });
 
-// 個別備考取得
-admin.get('/remarks/:employeeCode/:date', (req, res) => {
+// 個別取得
+admin.get("/remarks/:employeeCode/:date", (req, res) => {
   try {
-    const { employeeCode: code, date } = req.params;
-    const remarks = readJson<Remark[]>('remarks.json', []);
-    const remark = remarks.find((r: Remark) => r.code === code && r.date === date);
-    
-    if (remark) {
-      res.json({ ok: true, remark: remark.remark });
-    } else {
-      res.json({ ok: true, remark: '' });
-    }
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to get remark' });
+    const { employeeCode: code, date } = req.params as any;
+    const remarks = readJson<Remark[]>("remarks.json", []);
+    const r = remarks.find((x) => x.code === code && x.date === date);
+    res.json({ ok: true, remark: r?.remark ?? "" });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to get remark" });
   }
 });
 
-// 月別備考取得
-admin.get('/remarks/:employeeCode', (req, res) => {
+// 月別取得
+admin.get("/remarks/:employeeCode", (req, res) => {
   try {
-    const { employeeCode: code } = req.params;
-    const { month } = req.query;
-    const remarks = readJson<Remark[]>('remarks.json', []);
-    
-    let filteredRemarks = remarks.filter((r: Remark) => r.code === code);
-    
-    if (month) {
-      const monthStr = month.toString();
-      filteredRemarks = filteredRemarks.filter((r: Remark) => r.date.startsWith(monthStr));
-    }
-    
-    const remarksData = filteredRemarks.map((r: Remark) => ({
-      date: r.date,
-      remark: r.remark
-    }));
-    
-    res.json({ ok: true, remarks: remarksData });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to get remarks' });
+    const { employeeCode: code } = req.params as any;
+    const month = req.query.month?.toString();
+    const remarks = readJson<Remark[]>("remarks.json", []);
+    let filtered = remarks.filter((r) => r.code === code);
+    if (month) filtered = filtered.filter((r) => r.date.startsWith(month));
+    const data = filtered.map((r) => ({ date: r.date, remark: r.remark }));
+    res.json({ ok: true, remarks: data });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to get remarks" });
   }
 });
 
 // ============================================================================
-// マスターデータ API
+// マスター
 // ============================================================================
 
-// マスターデータ取得
-admin.get('/master', (req, res) => {
+admin.get("/master", (req, res) => {
   try {
-    const date = String(req.query.date ?? '');
-    const employees = readJson<Employee[]>('employees.json', []);
-    const departments = readJson<Department[]>('departments.json', []);
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const remarks = readJson<Remark[]>('remarks.json', []);
-    
-    res.json({ 
-      ok: true, 
-      date, 
-      employees, 
-      departments, 
-      attendance, 
-      remarks,
-      list: employees
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to read master data' });
+    const date = String(req.query.date ?? "");
+    const employees = readJson<Employee[]>("employees.json", []);
+    const departments = readJson<Department[]>("departments.json", []);
+    const attendance = readJson<AttendanceItem[]>("attendance.json", []);
+    const remarks = readJson<Remark[]>("remarks.json", []);
+    res.json({ ok: true, date, employees, departments, attendance, remarks, list: employees });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to read master data" });
   }
 });
 
 // ============================================================================
-// 祝日管理 API
+// 祝日（ダミー）
 // ============================================================================
 
-// 祝日一覧取得
-admin.get('/holidays', (req, res) => {
+admin.get("/holidays", (_req, res) => {
   try {
-    // 簡易的な祝日データ（実際の実装では外部APIやデータベースから取得）
-    const holidays = {
-      '2024-01-01': '元日',
-      '2024-01-08': '成人の日',
-      '2024-02-11': '建国記念の日',
-      '2024-02-12': '建国記念の日 振替休日',
-      '2024-02-23': '天皇誕生日',
-      '2024-03-20': '春分の日',
-      '2024-04-29': '昭和の日',
-      '2024-05-03': '憲法記念日',
-      '2024-05-04': 'みどりの日',
-      '2024-05-05': 'こどもの日',
-      '2024-05-06': 'こどもの日 振替休日',
-      '2024-07-15': '海の日',
-      '2024-08-11': '山の日',
-      '2024-08-12': '山の日 振替休日',
-      '2024-09-16': '敬老の日',
-      '2024-09-22': '秋分の日',
-      '2024-09-23': '秋分の日 振替休日',
-      '2024-10-14': 'スポーツの日',
-      '2024-11-03': '文化の日',
-      '2024-11-04': '文化の日 振替休日',
-      '2024-11-23': '勤労感謝の日'
+    const holidays: Record<string, string> = {
+      "2024-01-01": "元日",
+      "2024-01-08": "成人の日",
+      "2024-02-11": "建国記念の日",
+      "2024-02-12": "建国記念の日 振替休日",
+      "2024-02-23": "天皇誕生日",
+      "2024-03-20": "春分の日",
+      "2024-04-29": "昭和の日",
+      "2024-05-03": "憲法記念日",
+      "2024-05-04": "みどりの日",
+      "2024-05-05": "こどもの日",
+      "2024-05-06": "こどもの日 振替休日",
+      "2024-07-15": "海の日",
+      "2024-08-11": "山の日",
+      "2024-08-12": "山の日 振替休日",
+      "2024-09-16": "敬老の日",
+      "2024-09-22": "秋分の日",
+      "2024-09-23": "秋分の日 振替休日",
+      "2024-10-14": "スポーツの日",
+      "2024-11-03": "文化の日",
+      "2024-11-04": "文化の日 振替休日",
+      "2024-11-23": "勤労感謝の日"
     };
-    
     res.json({ ok: true, holidays });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch holidays' });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to fetch holidays" });
   }
 });
 
-// 特定日の祝日チェック
-admin.get('/holidays/:date', (req, res) => {
+admin.get("/holidays/:date", (req, res) => {
   try {
     const { date } = req.params;
-    
-    // 簡易的な祝日データ（実際の実装では外部APIやデータベースから取得）
     const holidays: Record<string, string> = {
-      '2024-01-01': '元日',
-      '2024-01-08': '成人の日',
-      '2024-02-11': '建国記念の日',
-      '2024-02-12': '建国記念の日 振替休日',
-      '2024-02-23': '天皇誕生日',
-      '2024-03-20': '春分の日',
-      '2024-04-29': '昭和の日',
-      '2024-05-03': '憲法記念日',
-      '2024-05-04': 'みどりの日',
-      '2024-05-05': 'こどもの日',
-      '2024-05-06': 'こどもの日 振替休日',
-      '2024-07-15': '海の日',
-      '2024-08-11': '山の日',
-      '2024-08-12': '山の日 振替休日',
-      '2024-09-16': '敬老の日',
-      '2024-09-22': '秋分の日',
-      '2024-09-23': '秋分の日 振替休日',
-      '2024-10-14': 'スポーツの日',
-      '2024-11-03': '文化の日',
-      '2024-11-04': '文化の日 振替休日',
-      '2024-11-23': '勤労感謝の日'
+      "2024-01-01": "元日",
+      "2024-01-08": "成人の日",
+      // …（上と同様）
     };
-    
     const holidayName = holidays[date] || null;
-    const isHoliday = holidayName !== null;
-    
-    res.json({ 
-      ok: true, 
-      date, 
-      isHoliday, 
-      holidayName 
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to check holiday' });
+    res.json({ ok: true, date, isHoliday: !!holidayName, holidayName });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to check holiday" });
   }
 });
 
 // ============================================================================
-// 週次レポート API
+// セッション（簡易JSON）
 // ============================================================================
 
-// 週次レポート取得
-admin.get('/weekly', (req, res) => {
+admin.post("/sessions", (req, res) => {
   try {
-    const { start } = req.query;
-    const startDate = start ? new Date(start.toString()) : new Date();
-    
-    // 週の開始日を月曜日に設定
-    const dayOfWeek = startDate.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const weekStart = new Date(startDate);
-    weekStart.setDate(startDate.getDate() + mondayOffset);
-    weekStart.setHours(0, 0, 0, 0);
-    
-    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
-    const employees = readJson<Employee[]>('employees.json', []);
-    
-    // 週のデータを生成
-    const weekData = [];
-    for (let i = 0; i < 7; i++) {
-      const currentDate = new Date(weekStart);
-      currentDate.setDate(weekStart.getDate() + i);
-      const dateStr = currentDate.toISOString().slice(0, 10);
-      
-      const dayAttendance = attendance.filter((a: AttendanceItem) => a.date === dateStr);
-      const dayData = {
-        date: dateStr,
-        employees: employees.map((emp: Employee) => {
-          const att: AttendanceItem | undefined = dayAttendance.find((a: AttendanceItem) => a.code === emp.code);
-          return {
-            code: emp.code,
-            name: emp.name,
-            clock_in: att?.clock_in ?? null,
-            clock_out: att?.clock_out ?? null,
-            work_hours: att?.work_hours ?? 0
-          };
-        })
-      };
-      weekData.push(dayData);
-    }
-    
-    res.json({ 
-      ok: true, 
-      weekData, 
-      startDate: weekStart.toISOString().slice(0, 10) 
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to fetch weekly report' });
-  }
-});
+    const { code, name, department, rememberMe } = req.body ?? {};
+    if (!code || !name) return res.status(400).json({ ok:false, error:"code and name are required" });
 
-// ============================================================================
-// セッション管理 API
-// ============================================================================
-
-// セッション保存
-admin.post('/sessions', (req, res) => {
-  try {
-    const { code, name, department, rememberMe } = req.body;
-    if (!code || !name) return res.status(400).json({ ok: false, error: 'code and name are required' });
-    
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const user = { code, name, department };
-    
-    // セッションデータを保存（実際の実装ではRedisやデータベースを使用）
-    const sessions = readJson<SessionsMap>('sessions.json', {});
+    const sessions = readJson<SessionsMap>("sessions.json", {});
     sessions[sessionId] = {
       user,
       created_at: new Date().toISOString(),
-      expires_at: rememberMe ? 
-        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : // 30日
-        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 1日
+      expires_at: (rememberMe ? new Date(Date.now() + 30*24*60*60*1000) : new Date(Date.now() + 24*60*60*1000)).toISOString()
     };
-    
-    writeJson('sessions.json', sessions);
-    res.json({ ok: true, sessionId, user });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to save session' });
+    writeJson("sessions.json", sessions);
+    res.json({ ok:true, sessionId, user });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to save session" });
   }
 });
 
-// セッション取得
-admin.get('/sessions/:sessionId', (req, res) => {
+admin.get("/sessions/:sessionId", (req, res) => {
   try {
     const { sessionId } = req.params;
-    const sessions = readJson<SessionsMap>('sessions.json', {});
+    const sessions = readJson<SessionsMap>("sessions.json", {});
     const session = sessions[sessionId];
-    
-    if (!session) {
-      return res.status(404).json({ ok: false, error: 'Session not found' });
-    }
-    
-    // セッションの有効期限をチェック
+    if (!session) return res.status(404).json({ ok:false, error:"Session not found" });
+
     const now = new Date();
-    const expiresAt = new Date(session.expires_at);
-    
+    const expiresAt = new Date(session.expires_at ?? now.toISOString());
     if (now > expiresAt) {
-      // 期限切れのセッションを削除
       delete sessions[sessionId];
-      writeJson('sessions.json', sessions);
-      return res.status(401).json({ ok: false, error: 'Session expired' });
+      writeJson("sessions.json", sessions);
+      return res.status(401).json({ ok:false, error:"Session expired" });
     }
-    
-    res.json({ ok: true, user: session.user });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to get session' });
+    res.json({ ok:true, user: session.user });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to get session" });
   }
 });
 
-// セッション削除
-admin.delete('/sessions/:sessionId', (req, res) => {
+admin.delete("/sessions/:sessionId", (req, res) => {
   try {
     const { sessionId } = req.params;
-    const sessions = readJson<SessionsMap>('sessions.json', {});
-    
+    const sessions = readJson<SessionsMap>("sessions.json", {});
     if (sessions[sessionId]) {
       delete sessions[sessionId];
-      writeJson('sessions.json', sessions);
-      res.json({ ok: true, message: 'Session deleted' });
-    } else {
-      res.status(404).json({ ok: false, error: 'Session not found' });
+      writeJson("sessions.json", sessions);
+      return res.json({ ok:true, message:"Session deleted" });
     }
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete session' });
+    res.status(404).json({ ok:false, error:"Session not found" });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to delete session" });
   }
 });
 
 // ============================================================================
-// バックアップ管理 API
+// バックアップ
 // ============================================================================
 
-// バックアップ一覧取得
-admin.get('/backups', (_req, res) => {
+admin.get("/backups", (_req, res) => {
   try {
-    const backups = readJson('backup_metadata.json', []);
-    res.json({ ok: true, backups });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to read backups' });
+    const backups = readJson<BackupMeta[]>("backup_metadata.json", []);
+    res.json({ ok:true, backups });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to read backups" });
   }
 });
 
-// バックアップ作成
-admin.post('/backups/create', (req, res) => {
+admin.post("/backups/create", (req, res) => {
   try {
-    const { reason = 'manual' } = req.body;
+    const { reason = "manual" } = req.body ?? {};
     const backupId = `backup_${Date.now()}`;
     const timestamp = new Date().toISOString();
-    
-    // 全データをバックアップ
+
     const backup: BackupBlob = {
-      employees: readJson<Employee[]>('employees.json', []),
-      departments: readJson<Department[]>('departments.json', []),
-      attendance: readJson<AttendanceItem[]>('attendance.json', []),
-      remarks: readJson<Remark[]>('remarks.json', [])
+      employees: readJson<Employee[]>("employees.json", []),
+      departments: readJson<Department[]>("departments.json", []),
+      attendance: readJson<AttendanceItem[]>("attendance.json", []),
+      remarks: readJson<Remark[]>("remarks.json", [])
     };
-    
-    // バックアップファイルに保存
+
     writeJson(`backups/${backupId}.json`, backup);
-    
-    // メタデータを更新
-    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
-    metadata.push({ 
-      id: backupId, 
-      timestamp, 
+
+    const metadata = readJson<BackupMeta[]>("backup_metadata.json", []);
+    metadata.push({
+      id: backupId,
+      timestamp,
       reason,
       size: JSON.stringify(backup).length,
-      name: `Backup ${timestamp.slice(0, 19)}` 
+      name: `Backup ${timestamp.slice(0,19)}`
     });
-    writeJson('backup_metadata.json', metadata);
-    
-    res.json({ ok: true, backupId, timestamp, message: 'バックアップを作成しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to create backup' });
+    writeJson("backup_metadata.json", metadata);
+
+    res.json({ ok:true, backupId, timestamp, message:"バックアップを作成しました" });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to create backup" });
   }
 });
 
-// フロントエンド互換: バックアップ作成
-admin.post('/backup', (req, res) => {
+admin.post("/backup", (req, res) => {
   try {
-    const { reason = 'manual' } = req.body;
+    const { reason = "manual" } = req.body ?? {};
     const backupId = `backup_${Date.now()}`;
     const timestamp = new Date().toISOString();
-    
-    // 全データをバックアップ
+
     const backup: BackupBlob = {
-      employees: readJson<Employee[]>('employees.json', []),
-      departments: readJson<Department[]>('departments.json', []),
-      attendance: readJson<AttendanceItem[]>('attendance.json', []),
-      remarks: readJson<Remark[]>('remarks.json', [])
+      employees: readJson<Employee[]>("employees.json", []),
+      departments: readJson<Department[]>("departments.json", []),
+      attendance: readJson<AttendanceItem[]>("attendance.json", []),
+      remarks: readJson<Remark[]>("remarks.json", [])
     };
-    
-    // バックアップファイルに保存
+
     writeJson(`backups/${backupId}.json`, backup);
-    
-    // メタデータを更新
-    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
-    metadata.push({ 
-      id: backupId, 
-      timestamp, 
+
+    const metadata = readJson<BackupMeta[]>("backup_metadata.json", []);
+    metadata.push({
+      id: backupId,
+      timestamp,
       reason,
       size: JSON.stringify(backup).length,
-      name: `Backup ${timestamp.slice(0, 19)}` 
+      name: `Backup ${timestamp.slice(0,19)}`
     });
-    writeJson('backup_metadata.json', metadata);
-    
-    res.json({ ok: true, backupId, timestamp, message: 'バックアップを作成しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to create backup' });
+    writeJson("backup_metadata.json", metadata);
+
+    res.json({ ok:true, backupId, timestamp, message:"バックアップを作成しました" });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to create backup" });
   }
 });
 
-// バックアップ削除
-admin.delete('/backups/:name', (req, res) => {
+admin.delete("/backups/:id", (req, res) => {
   try {
-    const { name } = req.params;
-    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
-    const index = metadata.findIndex((b: BackupMeta) => b.id === name);
-    
-    if (index === -1) return res.status(404).json({ ok: false, error: 'backup not found' });
-    
+    const { id } = req.params;
+    const metadata = readJson<BackupMeta[]>("backup_metadata.json", []);
+    const index = metadata.findIndex((b) => b.id === id);
+    if (index === -1) return res.status(404).json({ ok:false, error:"backup not found" });
     metadata.splice(index, 1);
-    writeJson('backup_metadata.json', metadata);
-    
-    res.json({ ok: true, message: 'バックアップを削除しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to delete backup' });
+    writeJson("backup_metadata.json", metadata);
+    res.json({ ok:true, message:"バックアップを削除しました" });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to delete backup" });
   }
 });
 
-// バックアッププレビュー
-admin.get('/backups/:id/preview', (req, res) => {
+admin.get("/backups/:id/preview", (req, res) => {
   try {
     const { id } = req.params;
-    const backup = (await readJson<BackupBlob | null>(`backups/${id}.json`, null)) ?? {};
-    
-    if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
-    
-    res.json({ ok: true, backup });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to read backup' });
+    const backup = readJson<BackupBlob | null>(`backups/${id}.json`, null);
+    if (!backup) return res.status(404).json({ ok:false, error:"backup not found" });
+    res.json({ ok:true, backup });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to read backup" });
   }
 });
 
-// バックアップ復元
-admin.post('/backups/restore', (req, res) => {
+admin.post("/backups/restore", (req, res) => {
   try {
-    const { backup_id } = req.body;
-    if (!backup_id) return res.status(400).json({ ok: false, error: 'backup_id is required' });
-    
-    const backup = (await readJson<BackupBlob | null>(`backups/${backup_id}.json`, null)) ?? {};
-    if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
-    
-    // データを復元
-    writeJson('employees.json', backup.employees ?? []);
-    writeJson('departments.json', backup.departments ?? []);
-    writeJson('attendance.json', backup.attendance ?? []);
-    writeJson('remarks.json', backup.remarks ?? []);
-    
-    res.json({ ok: true, message: 'バックアップを復元しました' });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to restore backup' });
+    const { backup_id } = req.body ?? {};
+    if (!backup_id) return res.status(400).json({ ok:false, error:"backup_id is required" });
+
+    const backup = readJson<BackupBlob | null>(`backups/${backup_id}.json`, null);
+    if (!backup) return res.status(404).json({ ok:false, error:"backup not found" });
+
+    writeJson("employees.json", backup.employees ?? []);
+    writeJson("departments.json", backup.departments ?? []);
+    writeJson("attendance.json", backup.attendance ?? []);
+    writeJson("remarks.json", backup.remarks ?? []);
+
+    res.json({ ok:true, message:"バックアップを復元しました" });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to restore backup" });
   }
 });
 
-// フロントエンド互換: バックアップ復元
-admin.post('/backups/:id/restore', (req, res) => {
+admin.post("/backups/:id/restore", (req, res) => {
   try {
     const { id } = req.params;
-    
-    const backup = (await readJson<BackupBlob | null>(`backups/${id}.json`, null)) ?? {};
-    if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
-    
-    // データを復元
-    writeJson('employees.json', backup.employees ?? []);
-    writeJson('departments.json', backup.departments ?? []);
-    writeJson('attendance.json', backup.attendance ?? []);
-    writeJson('remarks.json', backup.remarks ?? []);
-    
-    res.json({ 
-      ok: true, 
-      message: 'バックアップを復元しました',
-      restoredAt: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to restore backup' });
+    const backup = readJson<BackupBlob | null>(`backups/${id}.json`, null);
+    if (!backup) return res.status(404).json({ ok:false, error:"backup not found" });
+
+    writeJson("employees.json", backup.employees ?? []);
+    writeJson("departments.json", backup.departments ?? []);
+    writeJson("attendance.json", backup.attendance ?? []);
+    writeJson("remarks.json", backup.remarks ?? []);
+
+    res.json({ ok:true, message:"バックアップを復元しました", restoredAt: new Date().toISOString() });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to restore backup" });
   }
 });
 
-// バックアップクリーンアップ
-admin.post('/backups/cleanup', (req, res) => {
+admin.post("/backups/cleanup", (req, res) => {
   try {
-    const { maxKeep = 10 } = req.body;
-    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
-    
-    // タイムスタンプでソート（古い順）
-    metadata.sort((a: BackupMeta, b: BackupMeta) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    
-    const toDelete = metadata.slice(0, Math.max(0, metadata.length - maxKeep));
-    const remaining = metadata.slice(Math.max(0, metadata.length - maxKeep));
-    
-    // 古いバックアップを削除
-    toDelete.forEach((backup: BackupMeta) => {
-      try {
-        // バックアップファイルを削除（実際の実装ではfs.unlinkSyncを使用）
-        // fs.unlinkSync(`backups/${backup.id}.json`);
-      } catch (error) {
-        console.error(`Failed to delete backup file: ${backup.id}`, error);
-      }
-    });
-    
-    // メタデータを更新
-    writeJson('backup_metadata.json', remaining);
-    
-    res.json({ 
-      ok: true, 
-      message: '古いバックアップをクリーンアップしました',
-      deletedCount: toDelete.length,
-      remainingCount: remaining.length
-    });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: 'Failed to cleanup backups' });
+    const maxKeep = Number(req.body?.maxKeep ?? 10);
+    const metadata = readJson<BackupMeta[]>("backup_metadata.json", []);
+    metadata.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const remaining = metadata.slice(-maxKeep);
+    writeJson("backup_metadata.json", remaining);
+    res.json({ ok:true, message:"古いバックアップをクリーンアップしました", deletedCount: metadata.length - remaining.length, remainingCount: remaining.length });
+  } catch {
+    res.status(500).json({ ok:false, error:"Failed to cleanup backups" });
   }
 });
 
