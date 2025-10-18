@@ -94,7 +94,8 @@ admin.post('/departments', (req, res) => {
     departments.push(dept);
     writeJson('departments.json', departments);
     
-    res.status(201).json({ ok: true, item: dept });
+    // フロントエンドの即座の状態更新のため、更新された一覧を返す
+    res.status(201).json({ ok: true, item: dept, departments: departments });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create department' });
   }
@@ -114,7 +115,8 @@ admin.put('/departments/:id', (req, res) => {
     departments[index] = { ...departments[index], name, updated_at: new Date().toISOString() };
     writeJson('departments.json', departments);
     
-    res.json({ ok: true, item: departments[index] });
+    // フロントエンドの即座の状態更新のため、更新された一覧を返す
+    res.json({ ok: true, item: departments[index], departments: departments });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to update department' });
   }
@@ -131,7 +133,8 @@ admin.delete('/departments/:id', (req, res) => {
     const deleted = departments.splice(index, 1)[0];
     writeJson('departments.json', departments);
     
-    res.json({ ok: true, item: deleted });
+    // フロントエンドの即座の状態更新のため、更新された一覧を返す
+    res.json({ ok: true, item: deleted, departments: departments });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to delete department' });
   }
