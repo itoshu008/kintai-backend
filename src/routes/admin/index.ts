@@ -1,6 +1,67 @@
 // backend/src/routes/admin/index.ts
 import { Router } from 'express';
-import { readJson, writeJson } from '../../utils/dataStore';
+import { readJson, writeJson } from '../../utils/dataStore.js';
+import { Employee, Department, AttendanceItem, Remark, SessionsMap, BackupMeta, BackupBlob } from '../../types.js';
+
+// ---- 型定義（最小限・今回のエラー対策）----
+type ISODateTime = string;
+
+export interface Department {
+  id: number;
+  name: string;
+  created_at: ISODateTime;
+  updated_at?: ISODateTime;
+}
+
+export interface Employee {
+  code: string;
+  name: string;
+  department_id: number;
+  created_at: ISODateTime;
+  updated_at?: ISODateTime;
+}
+
+export interface Remark {
+  code: string;
+  date: string;             // YYYY-MM-DD
+  remark: string;
+  created_at: ISODateTime;
+  updated_at?: ISODateTime;
+}
+
+export interface AttendanceItem {
+  employeeCode: string;
+  date: string;             // YYYY-MM-DD
+  clock_in: string | null;
+  clock_out: string | null;
+  work_hours: number;
+  // 追加：今回エラーで要求されていたフィールド
+  updated_at?: ISODateTime;
+  code?: string;            // 既存コードが code を入れているため許容
+}
+
+export interface BackupBlob {
+  employees: Employee[];
+  departments: Department[];
+  attendance: AttendanceItem[];
+  remarks: Remark[];
+}
+
+export interface BackupMeta {
+  id: string;
+  timestamp: ISODateTime;
+  reason: any;
+  size: number;
+  name: string;
+}
+
+type SessionInfo = {
+  tmpDir?: string;
+  zipPath?: string;
+  createdAt: ISODateTime;
+};
+type SessionsMap = Record<string, SessionInfo>;
+// ---- 型定義ここまで ----
 
 export const admin = Router();
 
@@ -14,7 +75,7 @@ admin.get('/health', (_req, res) => res.json({ ok: true }));
 // 部署一覧取得
 admin.get('/departments', (_req, res) => {
   try {
-    const departments = readJson('departments.json', []);
+    const departments = readJson<Department[]>('departments.json', []);
     res.json({ ok: true, items: departments });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to read departments' });
@@ -27,7 +88,7 @@ admin.post('/departments', (req, res) => {
     const name = (req.body?.name ?? '').toString().trim();
     if (!name) return res.status(400).json({ ok: false, error: 'name required' });
     
-    const departments = readJson('departments.json', []);
+    const departments = readJson<Department[]>('departments.json', []);
     const id = Date.now();
     const dept = { id, name, created_at: new Date().toISOString() };
     departments.push(dept);
@@ -46,8 +107,8 @@ admin.put('/departments/:id', (req, res) => {
     const name = (req.body?.name ?? '').toString().trim();
     if (!name) return res.status(400).json({ ok: false, error: 'name required' });
     
-    const departments = readJson('departments.json', []);
-    const index = departments.findIndex((d: any) => d.id === id);
+    const departments = readJson<Department[]>('departments.json', []);
+    const index = departments.findIndex((d: Department) => d.id === id);
     if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
     
     departments[index] = { ...departments[index], name, updated_at: new Date().toISOString() };
@@ -63,8 +124,8 @@ admin.put('/departments/:id', (req, res) => {
 admin.delete('/departments/:id', (req, res) => {
   try {
     const id = Number(req.params.id);
-    const departments = readJson('departments.json', []);
-    const index = departments.findIndex((d: any) => d.id === id);
+    const departments = readJson<Department[]>('departments.json', []);
+    const index = departments.findIndex((d: Department) => d.id === id);
     if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
     
     const deleted = departments.splice(index, 1)[0];
@@ -83,7 +144,7 @@ admin.delete('/departments/:id', (req, res) => {
 // 社員一覧取得
 admin.get('/employees', (_req, res) => {
   try {
-    const employees = readJson('employees.json', []);
+    const employees = readJson<Employee[]>('employees.json', []);
     res.json({ ok: true, employees });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to read employees' });
@@ -98,8 +159,8 @@ admin.post('/employees', (req, res) => {
       return res.status(400).json({ ok: false, error: 'code, name, and department_id are required' });
     }
     
-    const employees = readJson('employees.json', []);
-    const existingIndex = employees.findIndex((e: any) => e.code === code);
+    const employees = readJson<Employee[]>('employees.json', []);
+    const existingIndex = employees.findIndex((e: Employee) => e.code === code);
     
     if (existingIndex >= 0) {
       if (req.query.overwrite === 'true') {
@@ -143,8 +204,8 @@ admin.put('/employees/:code', (req, res) => {
       return res.status(400).json({ ok: false, error: 'name and department_id are required' });
     }
     
-    const employees = readJson('employees.json', []);
-    const index = employees.findIndex((e: any) => e.code === code);
+    const employees = readJson<Employee[]>('employees.json', []);
+    const index = employees.findIndex((e: Employee) => e.code === code);
     if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
     
     employees[index] = { 
@@ -165,8 +226,8 @@ admin.put('/employees/:code', (req, res) => {
 admin.delete('/employees/:code', (req, res) => {
   try {
     const { code } = req.params;
-    const employees = readJson('employees.json', []);
-    const index = employees.findIndex((e: any) => e.code === code);
+    const employees = readJson<Employee[]>('employees.json', []);
+    const index = employees.findIndex((e: Employee) => e.code === code);
     if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
     
     const deleted = employees.splice(index, 1)[0];
@@ -182,8 +243,8 @@ admin.delete('/employees/:code', (req, res) => {
 admin.get('/employees/:code/exists', (req, res) => {
   try {
     const { code } = req.params;
-    const employees = readJson('employees.json', []);
-    const exists = employees.some((e: any) => e.code === code);
+    const employees = readJson<Employee[]>('employees.json', []);
+    const exists = employees.some((e: Employee) => e.code === code);
     res.json({ ok: true, code, exists });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to check employee code' });
@@ -200,12 +261,12 @@ admin.post('/clock/in', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
-    const attendance = readJson('attendance.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -214,11 +275,14 @@ admin.post('/clock/in', (req, res) => {
     } else {
       // 新規作成
       attendance.push({
+        employeeCode: code,
         code,
         date: today,
         clock_in: now,
         clock_out: null,
-        created_at: now
+        work_hours: 0,
+        created_at: now,
+        updated_at: now
       });
     }
     
@@ -235,12 +299,12 @@ admin.post('/clock/out', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
-    const attendance = readJson('attendance.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -249,11 +313,14 @@ admin.post('/clock/out', (req, res) => {
     } else {
       // 新規作成（出勤なしで退勤のみ）
       attendance.push({
+        employeeCode: code,
         code,
         date: today,
         clock_in: null,
         clock_out: now,
-        created_at: now
+        work_hours: 0,
+        created_at: now,
+        updated_at: now
       });
     }
     
@@ -270,12 +337,12 @@ admin.post('/attendance/checkin', (req, res) => {
     const { code, note } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
-    const attendance = readJson('attendance.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -284,11 +351,14 @@ admin.post('/attendance/checkin', (req, res) => {
     } else {
       // 新規作成
       attendance.push({
+        employeeCode: code,
         code,
         date: today,
         clock_in: now,
         clock_out: null,
-        created_at: now
+        work_hours: 0,
+        created_at: now,
+        updated_at: now
       });
     }
     
@@ -305,12 +375,12 @@ admin.post('/attendance/checkout', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
-    const attendance = readJson('attendance.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
-    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -319,11 +389,14 @@ admin.post('/attendance/checkout', (req, res) => {
     } else {
       // 新規作成（出勤なしで退勤のみ）
       attendance.push({
+        employeeCode: code,
         code,
         date: today,
         clock_in: null,
         clock_out: now,
-        created_at: now
+        work_hours: 0,
+        created_at: now,
+        updated_at: now
       });
     }
     
@@ -340,8 +413,8 @@ admin.put('/attendance/update', (req, res) => {
     const { code, date, clock_in, clock_out } = req.body;
     if (!code || !date) return res.status(400).json({ ok: false, error: 'code and date are required' });
     
-    const attendance = readJson('attendance.json', []);
-    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === date);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
+    const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === date);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -354,11 +427,14 @@ admin.put('/attendance/update', (req, res) => {
     } else {
       // 新規作成
       attendance.push({
+        employeeCode: code,
         code,
         date,
         clock_in,
         clock_out,
-        created_at: new Date().toISOString()
+        work_hours: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
     }
     
@@ -379,8 +455,8 @@ admin.post('/remarks', (req, res) => {
     const { employeeCode: code, date, remark } = req.body;
     if (!code || !date) return res.status(400).json({ ok: false, error: 'employeeCode and date are required' });
     
-    const remarks = readJson('remarks.json', []);
-    const existingIndex = remarks.findIndex((r: any) => r.code === code && r.date === date);
+    const remarks = readJson<Remark[]>('remarks.json', []);
+    const existingIndex = remarks.findIndex((r: Remark) => r.code === code && r.date === date);
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -410,8 +486,8 @@ admin.post('/remarks', (req, res) => {
 admin.get('/remarks/:employeeCode/:date', (req, res) => {
   try {
     const { employeeCode: code, date } = req.params;
-    const remarks = readJson('remarks.json', []);
-    const remark = remarks.find((r: any) => r.code === code && r.date === date);
+    const remarks = readJson<Remark[]>('remarks.json', []);
+    const remark = remarks.find((r: Remark) => r.code === code && r.date === date);
     
     if (remark) {
       res.json({ ok: true, remark: remark.remark });
@@ -428,16 +504,16 @@ admin.get('/remarks/:employeeCode', (req, res) => {
   try {
     const { employeeCode: code } = req.params;
     const { month } = req.query;
-    const remarks = readJson('remarks.json', []);
+    const remarks = readJson<Remark[]>('remarks.json', []);
     
-    let filteredRemarks = remarks.filter((r: any) => r.code === code);
+    let filteredRemarks = remarks.filter((r: Remark) => r.code === code);
     
     if (month) {
       const monthStr = month.toString();
-      filteredRemarks = filteredRemarks.filter((r: any) => r.date.startsWith(monthStr));
+      filteredRemarks = filteredRemarks.filter((r: Remark) => r.date.startsWith(monthStr));
     }
     
-    const remarksData = filteredRemarks.map((r: any) => ({
+    const remarksData = filteredRemarks.map((r: Remark) => ({
       date: r.date,
       remark: r.remark
     }));
@@ -456,10 +532,10 @@ admin.get('/remarks/:employeeCode', (req, res) => {
 admin.get('/master', (req, res) => {
   try {
     const date = String(req.query.date ?? '');
-    const employees = readJson('employees.json', []);
-    const departments = readJson('departments.json', []);
-    const attendance = readJson('attendance.json', []);
-    const remarks = readJson('remarks.json', []);
+    const employees = readJson<Employee[]>('employees.json', []);
+    const departments = readJson<Department[]>('departments.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
+    const remarks = readJson<Remark[]>('remarks.json', []);
     
     res.json({ 
       ok: true, 
@@ -574,8 +650,8 @@ admin.get('/weekly', (req, res) => {
     weekStart.setDate(startDate.getDate() + mondayOffset);
     weekStart.setHours(0, 0, 0, 0);
     
-    const attendance = readJson('attendance.json', []);
-    const employees = readJson('employees.json', []);
+    const attendance = readJson<AttendanceItem[]>('attendance.json', []);
+    const employees = readJson<Employee[]>('employees.json', []);
     
     // 週のデータを生成
     const weekData = [];
@@ -584,17 +660,17 @@ admin.get('/weekly', (req, res) => {
       currentDate.setDate(weekStart.getDate() + i);
       const dateStr = currentDate.toISOString().slice(0, 10);
       
-      const dayAttendance = attendance.filter((a: any) => a.date === dateStr);
+      const dayAttendance = attendance.filter((a: AttendanceItem) => a.date === dateStr);
       const dayData = {
         date: dateStr,
-        employees: employees.map((emp: any) => {
-          const att = dayAttendance.find((a: any) => a.code === emp.code);
+        employees: employees.map((emp: Employee) => {
+          const att: AttendanceItem | undefined = dayAttendance.find((a: AttendanceItem) => a.code === emp.code);
           return {
             code: emp.code,
             name: emp.name,
-            clock_in: att?.clock_in || null,
-            clock_out: att?.clock_out || null,
-            work_hours: att?.work_hours || 0
+            clock_in: att?.clock_in ?? null,
+            clock_out: att?.clock_out ?? null,
+            work_hours: att?.work_hours ?? 0
           };
         })
       };
@@ -625,7 +701,7 @@ admin.post('/sessions', (req, res) => {
     const user = { code, name, department };
     
     // セッションデータを保存（実際の実装ではRedisやデータベースを使用）
-    const sessions = readJson('sessions.json', {});
+    const sessions = readJson<SessionsMap>('sessions.json', {});
     sessions[sessionId] = {
       user,
       created_at: new Date().toISOString(),
@@ -645,7 +721,7 @@ admin.post('/sessions', (req, res) => {
 admin.get('/sessions/:sessionId', (req, res) => {
   try {
     const { sessionId } = req.params;
-    const sessions = readJson('sessions.json', {});
+    const sessions = readJson<SessionsMap>('sessions.json', {});
     const session = sessions[sessionId];
     
     if (!session) {
@@ -673,7 +749,7 @@ admin.get('/sessions/:sessionId', (req, res) => {
 admin.delete('/sessions/:sessionId', (req, res) => {
   try {
     const { sessionId } = req.params;
-    const sessions = readJson('sessions.json', {});
+    const sessions = readJson<SessionsMap>('sessions.json', {});
     
     if (sessions[sessionId]) {
       delete sessions[sessionId];
@@ -709,21 +785,18 @@ admin.post('/backups/create', (req, res) => {
     const timestamp = new Date().toISOString();
     
     // 全データをバックアップ
-    const backup = {
-      id: backupId,
-      timestamp,
-      reason,
-      employees: readJson('employees.json', []),
-      departments: readJson('departments.json', []),
-      attendance: readJson('attendance.json', []),
-      remarks: readJson('remarks.json', [])
+    const backup: BackupBlob = {
+      employees: readJson<Employee[]>('employees.json', []),
+      departments: readJson<Department[]>('departments.json', []),
+      attendance: readJson<AttendanceItem[]>('attendance.json', []),
+      remarks: readJson<Remark[]>('remarks.json', [])
     };
     
     // バックアップファイルに保存
     writeJson(`backups/${backupId}.json`, backup);
     
     // メタデータを更新
-    const metadata = readJson('backup_metadata.json', []);
+    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
     metadata.push({ 
       id: backupId, 
       timestamp, 
@@ -747,21 +820,18 @@ admin.post('/backup', (req, res) => {
     const timestamp = new Date().toISOString();
     
     // 全データをバックアップ
-    const backup = {
-      id: backupId,
-      timestamp,
-      reason,
-      employees: readJson('employees.json', []),
-      departments: readJson('departments.json', []),
-      attendance: readJson('attendance.json', []),
-      remarks: readJson('remarks.json', [])
+    const backup: BackupBlob = {
+      employees: readJson<Employee[]>('employees.json', []),
+      departments: readJson<Department[]>('departments.json', []),
+      attendance: readJson<AttendanceItem[]>('attendance.json', []),
+      remarks: readJson<Remark[]>('remarks.json', [])
     };
     
     // バックアップファイルに保存
     writeJson(`backups/${backupId}.json`, backup);
     
     // メタデータを更新
-    const metadata = readJson('backup_metadata.json', []);
+    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
     metadata.push({ 
       id: backupId, 
       timestamp, 
@@ -781,8 +851,8 @@ admin.post('/backup', (req, res) => {
 admin.delete('/backups/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const metadata = readJson('backup_metadata.json', []);
-    const index = metadata.findIndex((b: any) => b.id === name);
+    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
+    const index = metadata.findIndex((b: BackupMeta) => b.id === name);
     
     if (index === -1) return res.status(404).json({ ok: false, error: 'backup not found' });
     
@@ -799,7 +869,7 @@ admin.delete('/backups/:name', (req, res) => {
 admin.get('/backups/:id/preview', (req, res) => {
   try {
     const { id } = req.params;
-    const backup = readJson(`backups/${id}.json`, null);
+    const backup = (await readJson<BackupBlob | null>(`backups/${id}.json`, null)) ?? {};
     
     if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
     
@@ -815,14 +885,14 @@ admin.post('/backups/restore', (req, res) => {
     const { backup_id } = req.body;
     if (!backup_id) return res.status(400).json({ ok: false, error: 'backup_id is required' });
     
-    const backup = readJson(`backups/${backup_id}.json`, null);
+    const backup = (await readJson<BackupBlob | null>(`backups/${backup_id}.json`, null)) ?? {};
     if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
     
     // データを復元
-    writeJson('employees.json', backup.employees || []);
-    writeJson('departments.json', backup.departments || []);
-    writeJson('attendance.json', backup.attendance || []);
-    writeJson('remarks.json', backup.remarks || []);
+    writeJson('employees.json', backup.employees ?? []);
+    writeJson('departments.json', backup.departments ?? []);
+    writeJson('attendance.json', backup.attendance ?? []);
+    writeJson('remarks.json', backup.remarks ?? []);
     
     res.json({ ok: true, message: 'バックアップを復元しました' });
   } catch (error) {
@@ -835,14 +905,14 @@ admin.post('/backups/:id/restore', (req, res) => {
   try {
     const { id } = req.params;
     
-    const backup = readJson(`backups/${id}.json`, null);
+    const backup = (await readJson<BackupBlob | null>(`backups/${id}.json`, null)) ?? {};
     if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
     
     // データを復元
-    writeJson('employees.json', backup.employees || []);
-    writeJson('departments.json', backup.departments || []);
-    writeJson('attendance.json', backup.attendance || []);
-    writeJson('remarks.json', backup.remarks || []);
+    writeJson('employees.json', backup.employees ?? []);
+    writeJson('departments.json', backup.departments ?? []);
+    writeJson('attendance.json', backup.attendance ?? []);
+    writeJson('remarks.json', backup.remarks ?? []);
     
     res.json({ 
       ok: true, 
@@ -858,16 +928,16 @@ admin.post('/backups/:id/restore', (req, res) => {
 admin.post('/backups/cleanup', (req, res) => {
   try {
     const { maxKeep = 10 } = req.body;
-    const metadata = readJson('backup_metadata.json', []);
+    const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
     
     // タイムスタンプでソート（古い順）
-    metadata.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    metadata.sort((a: BackupMeta, b: BackupMeta) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     
     const toDelete = metadata.slice(0, Math.max(0, metadata.length - maxKeep));
     const remaining = metadata.slice(Math.max(0, metadata.length - maxKeep));
     
     // 古いバックアップを削除
-    toDelete.forEach((backup: any) => {
+    toDelete.forEach((backup: BackupMeta) => {
       try {
         // バックアップファイルを削除（実際の実装ではfs.unlinkSyncを使用）
         // fs.unlinkSync(`backups/${backup.id}.json`);
