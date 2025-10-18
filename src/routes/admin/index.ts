@@ -36,7 +36,7 @@ interface AttendanceItem {
   clock_in: string | null;
   clock_out: string | null;
   work_hours: number;
-  // 追加：既存コードが使っているフィールドを許容（暫定）
+  // 既存コードが参照していたフィールドを暫定で許容
   updated_at?: ISODateTime;
   code?: string;
 }
@@ -76,29 +76,40 @@ admin.get("/health", (_req, res) =>
 // 部署管理
 // ============================================================================
 
-// 一覧
+// 一覧（フロント互換：items と departments の両方を返す）
 admin.get("/departments", (_req, res) => {
   try {
     const departments = readJson<Department[]>("departments.json", []);
-    res.json({ ok: true, items: departments });
+    res.json({ ok: true, items: departments, departments });
   } catch {
     res.status(500).json({ ok: false, error: "Failed to read departments" });
   }
 });
 
-// 追加
+// 追加（作成直後に最新一覧も返す／重複チェックあり）
 admin.post("/departments", (req, res) => {
   try {
     const name = (req.body?.name ?? "").toString().trim();
     if (!name) return res.status(400).json({ ok: false, error: "name required" });
 
     const departments = readJson<Department[]>("departments.json", []);
+
+    // 重複チェック（name が同一）
+    if (departments.some(d => d.name === name)) {
+      return res.status(409).json({ ok:false, error:"department already exists" });
+    }
+
     const id = Date.now();
     const dept: Department = { id, name, created_at: new Date().toISOString() };
     departments.push(dept);
     writeJson("departments.json", departments);
 
-    res.status(201).json({ ok: true, item: dept });
+    res.status(201).json({
+      ok: true,
+      item: dept,
+      items: departments,     // 互換用
+      departments             // 互換用
+    });
   } catch {
     res.status(500).json({ ok: false, error: "Failed to create department" });
   }
@@ -128,7 +139,7 @@ admin.put("/departments/:id", (req, res) => {
   }
 });
 
-// 削除
+// 削除（削除後に一覧も返すと便利）
 admin.delete("/departments/:id", (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -139,7 +150,7 @@ admin.delete("/departments/:id", (req, res) => {
     const deleted = departments.splice(index, 1)[0];
     writeJson("departments.json", departments);
 
-    res.json({ ok: true, item: deleted });
+    res.json({ ok: true, item: deleted, items: departments, departments });
   } catch {
     res.status(500).json({ ok: false, error: "Failed to delete department" });
   }
