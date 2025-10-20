@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -52,4 +53,21 @@ app.listen(PORT, () => {
   console.log(`Admin API: http://localhost:${PORT}/api/admin`);
 });
 
+=======
+// backend/src/index.ts
+import express from 'express';
+
+export function createApp() {
+  const app = express();
+
+  // ここにミドルウェアやルートを追加
+  app.get('/api/admin/health', (_req, res) =>
+    res.json({ ok: true, env: process.env.NODE_ENV ?? 'dev', now: new Date().toISOString() })
+  );
+
+  return app;
+}
+
+export const app = createApp();
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 export default app;

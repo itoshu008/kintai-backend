@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 ﻿# Logs
 logs
 *.log
@@ -166,3 +167,15 @@ data/departments.json
 data/remarks.json
 data/personal_pages.json
 data/backups/
+=======
+
+# local & secrets
+.env
+*.pem
+*.key
+node_modules/
+dist/
+build/
+out/
+
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
