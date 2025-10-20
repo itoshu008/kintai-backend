@@ -1,25 +1,17 @@
 {
   "name": "kintai-backend",
   "version": "1.0.0",
-  "description": "\u0000",
-  "main": "index.js",
+  "description": "kintai backend",
+  "type": "module",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node dist/server.js",
+    "start:green": "PORT=4001 node dist/server.js",
+    "start:blue": "PORT=4000 node dist/server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/itoshu008/kintai-backend.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/itoshu008/kintai-backend/issues"
-  },
-  "homepage": "https://github.com/itoshu008/kintai-backend#readme",
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0"
-  },
-  "type": "module"
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2"
+  }
 }

@@ -1,3 +1,4 @@
+import cors from "cors";
 // backend/src/server.ts
 import 'dotenv/config';
 import express from 'express';
