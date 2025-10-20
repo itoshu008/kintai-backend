@@ -1,5 +1,6 @@
 // backend/src/routes/admin/index.ts
 import { Router } from 'express';
+<<<<<<< HEAD
 import { readJson, writeJson } from '../../utils/dataStore.js';
 import { Employee, Department, AttendanceItem, Remark, SessionsMap, BackupMeta, BackupBlob } from '../../types.js';
 
@@ -62,6 +63,9 @@ type SessionInfo = {
 };
 type SessionsMap = Record<string, SessionInfo>;
 // ---- 型定義ここまで ----
+=======
+import { readJson, writeJson } from '../../utils/dataStore';
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 
 export const admin = Router();
 
@@ -75,7 +79,11 @@ admin.get('/health', (_req, res) => res.json({ ok: true }));
 // 部署一覧取得
 admin.get('/departments', (_req, res) => {
   try {
+<<<<<<< HEAD
     const departments = readJson<Department[]>('departments.json', []);
+=======
+    const departments = readJson('departments.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     res.json({ ok: true, items: departments });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to read departments' });
@@ -88,14 +96,22 @@ admin.post('/departments', (req, res) => {
     const name = (req.body?.name ?? '').toString().trim();
     if (!name) return res.status(400).json({ ok: false, error: 'name required' });
     
+<<<<<<< HEAD
     const departments = readJson<Department[]>('departments.json', []);
+=======
+    const departments = readJson('departments.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     const id = Date.now();
     const dept = { id, name, created_at: new Date().toISOString() };
     departments.push(dept);
     writeJson('departments.json', departments);
     
+<<<<<<< HEAD
     // フロントエンドの即座の状態更新のため、更新された一覧を返す
     res.status(201).json({ ok: true, item: dept, departments: departments });
+=======
+    res.status(201).json({ ok: true, item: dept });
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create department' });
   }
@@ -108,15 +124,24 @@ admin.put('/departments/:id', (req, res) => {
     const name = (req.body?.name ?? '').toString().trim();
     if (!name) return res.status(400).json({ ok: false, error: 'name required' });
     
+<<<<<<< HEAD
     const departments = readJson<Department[]>('departments.json', []);
     const index = departments.findIndex((d: Department) => d.id === id);
+=======
+    const departments = readJson('departments.json', []);
+    const index = departments.findIndex((d: any) => d.id === id);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
     
     departments[index] = { ...departments[index], name, updated_at: new Date().toISOString() };
     writeJson('departments.json', departments);
     
+<<<<<<< HEAD
     // フロントエンドの即座の状態更新のため、更新された一覧を返す
     res.json({ ok: true, item: departments[index], departments: departments });
+=======
+    res.json({ ok: true, item: departments[index] });
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to update department' });
   }
@@ -126,15 +151,24 @@ admin.put('/departments/:id', (req, res) => {
 admin.delete('/departments/:id', (req, res) => {
   try {
     const id = Number(req.params.id);
+<<<<<<< HEAD
     const departments = readJson<Department[]>('departments.json', []);
     const index = departments.findIndex((d: Department) => d.id === id);
+=======
+    const departments = readJson('departments.json', []);
+    const index = departments.findIndex((d: any) => d.id === id);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     if (index === -1) return res.status(404).json({ ok: false, error: 'department not found' });
     
     const deleted = departments.splice(index, 1)[0];
     writeJson('departments.json', departments);
     
+<<<<<<< HEAD
     // フロントエンドの即座の状態更新のため、更新された一覧を返す
     res.json({ ok: true, item: deleted, departments: departments });
+=======
+    res.json({ ok: true, item: deleted });
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to delete department' });
   }
@@ -147,7 +181,11 @@ admin.delete('/departments/:id', (req, res) => {
 // 社員一覧取得
 admin.get('/employees', (_req, res) => {
   try {
+<<<<<<< HEAD
     const employees = readJson<Employee[]>('employees.json', []);
+=======
+    const employees = readJson('employees.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     res.json({ ok: true, employees });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to read employees' });
@@ -162,8 +200,13 @@ admin.post('/employees', (req, res) => {
       return res.status(400).json({ ok: false, error: 'code, name, and department_id are required' });
     }
     
+<<<<<<< HEAD
     const employees = readJson<Employee[]>('employees.json', []);
     const existingIndex = employees.findIndex((e: Employee) => e.code === code);
+=======
+    const employees = readJson('employees.json', []);
+    const existingIndex = employees.findIndex((e: any) => e.code === code);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (existingIndex >= 0) {
       if (req.query.overwrite === 'true') {
@@ -207,8 +250,13 @@ admin.put('/employees/:code', (req, res) => {
       return res.status(400).json({ ok: false, error: 'name and department_id are required' });
     }
     
+<<<<<<< HEAD
     const employees = readJson<Employee[]>('employees.json', []);
     const index = employees.findIndex((e: Employee) => e.code === code);
+=======
+    const employees = readJson('employees.json', []);
+    const index = employees.findIndex((e: any) => e.code === code);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
     
     employees[index] = { 
@@ -229,8 +277,13 @@ admin.put('/employees/:code', (req, res) => {
 admin.delete('/employees/:code', (req, res) => {
   try {
     const { code } = req.params;
+<<<<<<< HEAD
     const employees = readJson<Employee[]>('employees.json', []);
     const index = employees.findIndex((e: Employee) => e.code === code);
+=======
+    const employees = readJson('employees.json', []);
+    const index = employees.findIndex((e: any) => e.code === code);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     if (index === -1) return res.status(404).json({ ok: false, error: 'employee not found' });
     
     const deleted = employees.splice(index, 1)[0];
@@ -242,6 +295,7 @@ admin.delete('/employees/:code', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // 社員コード存在チェック
 admin.get('/employees/:code/exists', (req, res) => {
   try {
@@ -254,6 +308,8 @@ admin.get('/employees/:code/exists', (req, res) => {
   }
 });
 
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 // ============================================================================
 // 勤怠管理 API
 // ============================================================================
@@ -264,12 +320,20 @@ admin.post('/clock/in', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
+<<<<<<< HEAD
     const attendance = readJson<AttendanceItem[]>('attendance.json', []);
+=======
+    const attendance = readJson('attendance.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
+<<<<<<< HEAD
     const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
+=======
+    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -278,14 +342,21 @@ admin.post('/clock/in', (req, res) => {
     } else {
       // 新規作成
       attendance.push({
+<<<<<<< HEAD
         employeeCode: code,
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
         code,
         date: today,
         clock_in: now,
         clock_out: null,
+<<<<<<< HEAD
         work_hours: 0,
         created_at: now,
         updated_at: now
+=======
+        created_at: now
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
       });
     }
     
@@ -302,12 +373,20 @@ admin.post('/clock/out', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ ok: false, error: 'code is required' });
     
+<<<<<<< HEAD
     const attendance = readJson<AttendanceItem[]>('attendance.json', []);
+=======
+    const attendance = readJson('attendance.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     const today = new Date().toISOString().slice(0, 10);
     const now = new Date().toISOString();
     
     // 既存の記録を探す
+<<<<<<< HEAD
     const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === today);
+=======
+    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === today);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -316,14 +395,21 @@ admin.post('/clock/out', (req, res) => {
     } else {
       // 新規作成（出勤なしで退勤のみ）
       attendance.push({
+<<<<<<< HEAD
         employeeCode: code,
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
         code,
         date: today,
         clock_in: null,
         clock_out: now,
+<<<<<<< HEAD
         work_hours: 0,
         created_at: now,
         updated_at: now
+=======
+        created_at: now
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
       });
     }
     
@@ -334,6 +420,7 @@ admin.post('/clock/out', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // フロントエンド互換: 出勤打刻
 admin.post('/attendance/checkin', (req, res) => {
   try {
@@ -410,14 +497,21 @@ admin.post('/attendance/checkout', (req, res) => {
   }
 });
 
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 // 勤怠時間修正
 admin.put('/attendance/update', (req, res) => {
   try {
     const { code, date, clock_in, clock_out } = req.body;
     if (!code || !date) return res.status(400).json({ ok: false, error: 'code and date are required' });
     
+<<<<<<< HEAD
     const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const existingIndex = attendance.findIndex((a: AttendanceItem) => a.code === code && a.date === date);
+=======
+    const attendance = readJson('attendance.json', []);
+    const existingIndex = attendance.findIndex((a: any) => a.code === code && a.date === date);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -430,14 +524,21 @@ admin.put('/attendance/update', (req, res) => {
     } else {
       // 新規作成
       attendance.push({
+<<<<<<< HEAD
         employeeCode: code,
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
         code,
         date,
         clock_in,
         clock_out,
+<<<<<<< HEAD
         work_hours: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
+=======
+        created_at: new Date().toISOString()
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
       });
     }
     
@@ -458,8 +559,13 @@ admin.post('/remarks', (req, res) => {
     const { employeeCode: code, date, remark } = req.body;
     if (!code || !date) return res.status(400).json({ ok: false, error: 'employeeCode and date are required' });
     
+<<<<<<< HEAD
     const remarks = readJson<Remark[]>('remarks.json', []);
     const existingIndex = remarks.findIndex((r: Remark) => r.code === code && r.date === date);
+=======
+    const remarks = readJson('remarks.json', []);
+    const existingIndex = remarks.findIndex((r: any) => r.code === code && r.date === date);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (existingIndex >= 0) {
       // 既存の記録を更新
@@ -485,6 +591,7 @@ admin.post('/remarks', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // 個別備考取得
 admin.get('/remarks/:employeeCode/:date', (req, res) => {
   try {
@@ -527,6 +634,8 @@ admin.get('/remarks/:employeeCode', (req, res) => {
   }
 });
 
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 // ============================================================================
 // マスターデータ API
 // ============================================================================
@@ -535,10 +644,17 @@ admin.get('/remarks/:employeeCode', (req, res) => {
 admin.get('/master', (req, res) => {
   try {
     const date = String(req.query.date ?? '');
+<<<<<<< HEAD
     const employees = readJson<Employee[]>('employees.json', []);
     const departments = readJson<Department[]>('departments.json', []);
     const attendance = readJson<AttendanceItem[]>('attendance.json', []);
     const remarks = readJson<Remark[]>('remarks.json', []);
+=======
+    const employees = readJson('employees.json', []);
+    const departments = readJson('departments.json', []);
+    const attendance = readJson('attendance.json', []);
+    const remarks = readJson('remarks.json', []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     res.json({ 
       ok: true, 
@@ -555,6 +671,7 @@ admin.get('/master', (req, res) => {
 });
 
 // ============================================================================
+<<<<<<< HEAD
 // 祝日管理 API
 // ============================================================================
 
@@ -767,6 +884,8 @@ admin.delete('/sessions/:sessionId', (req, res) => {
 });
 
 // ============================================================================
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 // バックアップ管理 API
 // ============================================================================
 
@@ -781,24 +900,40 @@ admin.get('/backups', (_req, res) => {
 });
 
 // バックアップ作成
+<<<<<<< HEAD
 admin.post('/backups/create', (req, res) => {
   try {
     const { reason = 'manual' } = req.body;
+=======
+admin.post('/backups/create', (_req, res) => {
+  try {
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     const backupId = `backup_${Date.now()}`;
     const timestamp = new Date().toISOString();
     
     // 全データをバックアップ
+<<<<<<< HEAD
     const backup: BackupBlob = {
       employees: readJson<Employee[]>('employees.json', []),
       departments: readJson<Department[]>('departments.json', []),
       attendance: readJson<AttendanceItem[]>('attendance.json', []),
       remarks: readJson<Remark[]>('remarks.json', [])
+=======
+    const backup = {
+      id: backupId,
+      timestamp,
+      employees: readJson('employees.json', []),
+      departments: readJson('departments.json', []),
+      attendance: readJson('attendance.json', []),
+      remarks: readJson('remarks.json', [])
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     };
     
     // バックアップファイルに保存
     writeJson(`backups/${backupId}.json`, backup);
     
     // メタデータを更新
+<<<<<<< HEAD
     const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
     metadata.push({ 
       id: backupId, 
@@ -845,6 +980,13 @@ admin.post('/backup', (req, res) => {
     writeJson('backup_metadata.json', metadata);
     
     res.json({ ok: true, backupId, timestamp, message: 'バックアップを作成しました' });
+=======
+    const metadata = readJson('backup_metadata.json', []);
+    metadata.push({ id: backupId, timestamp, name: `Backup ${timestamp.slice(0, 19)}` });
+    writeJson('backup_metadata.json', metadata);
+    
+    res.json({ ok: true, backupId, message: 'バックアップを作成しました' });
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to create backup' });
   }
@@ -854,8 +996,13 @@ admin.post('/backup', (req, res) => {
 admin.delete('/backups/:name', (req, res) => {
   try {
     const { name } = req.params;
+<<<<<<< HEAD
     const metadata = readJson<BackupMeta[]>('backup_metadata.json', []);
     const index = metadata.findIndex((b: BackupMeta) => b.id === name);
+=======
+    const metadata = readJson('backup_metadata.json', []);
+    const index = metadata.findIndex((b: any) => b.id === name);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (index === -1) return res.status(404).json({ ok: false, error: 'backup not found' });
     
@@ -872,7 +1019,11 @@ admin.delete('/backups/:name', (req, res) => {
 admin.get('/backups/:id/preview', (req, res) => {
   try {
     const { id } = req.params;
+<<<<<<< HEAD
     const backup = (await readJson<BackupBlob | null>(`backups/${id}.json`, null)) ?? {};
+=======
+    const backup = readJson(`backups/${id}.json`, null);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
     
@@ -888,6 +1039,7 @@ admin.post('/backups/restore', (req, res) => {
     const { backup_id } = req.body;
     if (!backup_id) return res.status(400).json({ ok: false, error: 'backup_id is required' });
     
+<<<<<<< HEAD
     const backup = (await readJson<BackupBlob | null>(`backups/${backup_id}.json`, null)) ?? {};
     if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
     
@@ -896,6 +1048,16 @@ admin.post('/backups/restore', (req, res) => {
     writeJson('departments.json', backup.departments ?? []);
     writeJson('attendance.json', backup.attendance ?? []);
     writeJson('remarks.json', backup.remarks ?? []);
+=======
+    const backup = readJson(`backups/${backup_id}.json`, null);
+    if (!backup) return res.status(404).json({ ok: false, error: 'backup not found' });
+    
+    // データを復元
+    writeJson('employees.json', backup.employees || []);
+    writeJson('departments.json', backup.departments || []);
+    writeJson('attendance.json', backup.attendance || []);
+    writeJson('remarks.json', backup.remarks || []);
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
     
     res.json({ ok: true, message: 'バックアップを復元しました' });
   } catch (error) {
@@ -903,6 +1065,7 @@ admin.post('/backups/restore', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // フロントエンド互換: バックアップ復元
 admin.post('/backups/:id/restore', (req, res) => {
   try {
@@ -963,4 +1126,6 @@ admin.post('/backups/cleanup', (req, res) => {
   }
 });
 
+=======
+>>>>>>> 1c2fbb3 (fix: resolve file structure and encoding issues)
 export default admin;
