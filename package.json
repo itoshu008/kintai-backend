@@ -16,5 +16,10 @@
   "bugs": {
     "url": "https://github.com/itoshu008/kintai-backend/issues"
   },
-  "homepage": "https://github.com/itoshu008/kintai-backend#readme"
+  "homepage": "https://github.com/itoshu008/kintai-backend#readme",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  },
+  "type": "module"
 }
